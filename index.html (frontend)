@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spotify Track Ranker</title>
+  <style>
+    /* ... styles comme précédemment ... */
+  </style>
+</head>
+<body>
+  <h1>Spotify Track Ranker</h1>
+  <input type="text" id="artist" placeholder="Artist Name" />
+  <input type="text" id="album" placeholder="Album Title" />
+  <button onclick="fetchTracks()">Submit</button>
+  <div id="track-list"></div>
+  <div id="ranking"></div>
+  <script>
+    const API_URL = 'https://<TON_BACKEND_URL>/api/spotify';
+
+    async function fetchTracks() {
+      const artist = document.getElementById('artist').value;
+      const album = document.getElementById('album').value;
+      const res = await fetch(API_URL + `?artist=${encodeURIComponent(artist)}&album=${encodeURIComponent(album)}`);
+      const data = await res.json();
+      if (data.error) return alert(data.error);
+      startRanking(data.tracks);
+    }
+    // ... reste du script identique ...
+  </script>
+</body>
+</html>
