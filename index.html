@@ -3,26 +3,99 @@
 <head>
 <meta charset="UTF-8">
 <title>Spotify Ranker</title>
+
 <style>
-body { background:#0f0f0f; color:white; font-family:Arial; text-align:center; }
-.card { width:200px; padding:20px; background:#1e1e1e; border-radius:15px; cursor:pointer; }
-.battle { display:flex; justify-content:center; gap:20px; margin-top:40px; }
+body {
+  margin: 0;
+  font-family: Arial;
+  color: white;
+  text-align: center;
+}
+
+#bg {
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  filter: blur(40px) brightness(0.4);
+  z-index: -1;
+}
+
+.container {
+  padding: 20px;
+}
+
+input {
+  padding: 12px;
+  border-radius: 10px;
+  border: none;
+}
+
+button {
+  padding: 12px 20px;
+  border-radius: 10px;
+  border: none;
+  background: #1db954;
+  color: white;
+  cursor: pointer;
+}
+
+.albums img {
+  width: 120px;
+  border-radius: 10px;
+  margin: 10px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.albums img:hover {
+  transform: scale(1.1);
+}
+
+.battle {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 40px;
+}
+
+.card {
+  width: 200px;
+  padding: 15px;
+  border-radius: 20px;
+  backdrop-filter: blur(10px);
+  background: rgba(255,255,255,0.1);
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.card:hover {
+  transform: scale(1.05);
+}
+
+.card img {
+  width: 100%;
+  border-radius: 10px;
+}
 </style>
 </head>
+
 <body>
 
+<div id="bg"></div>
+
+<div class="container">
 <h1>🎧 Album Ranker</h1>
-<input id="artistInput" placeholder="Artist">
+
+<input id="artistInput" placeholder="Artist name">
 <button onclick="searchArtist()">Search</button>
 
-<div id="albums"></div>
+<div class="albums" id="albums"></div>
 
-<div class="battle">
-  <div class="card" id="left"></div>
-  <div class="card" id="right"></div>
-</div>
+<div class="battle" id="battle"></div>
 
 <audio id="player"></audio>
+</div>
 
 <script>
 const clientId = "3f3173e083604096abe93d93e05a8867";
@@ -31,7 +104,6 @@ const clientSecret = "76dff06debf5467aa7fe2dc911779134";
 let token = "";
 let tracks = [];
 let queue = [];
-let results = [];
 
 async function getToken() {
   const res = await fetch("https://accounts.spotify.com/api/token", {
@@ -48,9 +120,11 @@ async function getToken() {
 
 async function searchArtist(){
   const name = document.getElementById("artistInput").value;
+
   const res = await fetch(`https://api.spotify.com/v1/search?q=artist:${name}&type=artist`,{
     headers:{Authorization:`Bearer ${token}`}
   });
+
   const data = await res.json();
   loadAlbums(data.artists.items[0].id);
 }
@@ -59,64 +133,75 @@ async function loadAlbums(id){
   const res = await fetch(`https://api.spotify.com/v1/artists/${id}/albums`,{
     headers:{Authorization:`Bearer ${token}`}
   });
+
   const data = await res.json();
   const container = document.getElementById("albums");
   container.innerHTML="";
+
   data.items.forEach(a=>{
-    const btn=document.createElement("button");
-    btn.innerText=a.name;
-    btn.onclick=()=>loadTracks(a.id);
-    container.appendChild(btn);
+    const img = document.createElement("img");
+    img.src = a.images[0]?.url;
+    img.onclick = () => loadTracks(a.id, a.images[0]?.url);
+    container.appendChild(img);
   });
 }
 
-async function loadTracks(id){
+async function loadTracks(id, cover){
+  document.getElementById("bg").style.backgroundImage = `url(${cover})`;
+
   const res = await fetch(`https://api.spotify.com/v1/albums/${id}`,{
     headers:{Authorization:`Bearer ${token}`}
   });
+
   const data = await res.json();
   tracks = data.tracks.items;
-  queue=[...tracks];
-  results=[];
+  queue = [...tracks];
+
   nextBattle();
 }
 
-function playPreview(url){
+function play(url){
   if(!url) return;
-  const player=document.getElementById("player");
-  player.src=url;
-  player.play();
+  const p = document.getElementById("player");
+  p.src = url;
+  p.play();
 }
 
 function nextBattle(){
-  if(queue.length<=1){
-    results.push(...queue);
-    alert("Done!");
-    return;
-  }
-  const a=queue.shift();
-  const b=queue.shift();
+  if(queue.length < 2) return;
 
-  const left=document.getElementById("left");
-  const right=document.getElementById("right");
+  const a = queue.shift();
+  const b = queue.shift();
 
-  left.innerHTML=a.name;
-  right.innerHTML=b.name;
+  const battle = document.getElementById("battle");
+  battle.innerHTML = "";
 
-  playPreview(a.preview_url);
+  const left = createCard(a);
+  const right = createCard(b);
 
-  left.onclick=()=>{
-    playPreview(a.preview_url);
-    choose(a,b);
-  };
-  right.onclick=()=>{
-    playPreview(b.preview_url);
-    choose(b,a);
-  };
+  left.onclick = () => choose(a,b);
+  right.onclick = () => choose(b,a);
+
+  battle.appendChild(left);
+  battle.appendChild(right);
+
+  play(a.preview_url);
+}
+
+function createCard(track){
+  const div = document.createElement("div");
+  div.className = "card";
+
+  div.innerHTML = `
+    <img src="${track.album.images[0]?.url}">
+    <p>${track.name}</p>
+  `;
+
+  return div;
 }
 
 function choose(w,l){
-  results.push(w);
+  play(w.preview_url);
   queue.push(l);
   nextBattle();
 }
