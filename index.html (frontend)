@@ -1,32 +1,204 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Spotify Track Ranker</title>
+  <meta charset="UTF-8">
+  <title>Spotify Album Ranker</title>
   <style>
-    /* ... styles comme précédemment ... */
+    body {
+      font-family: Arial;
+      background: #0f0f0f;
+      color: white;
+      text-align: center;
+      padding: 20px;
+    }
+
+    input, button {
+      padding: 10px;
+      margin: 10px;
+      border-radius: 8px;
+      border: none;
+    }
+
+    button {
+      cursor: pointer;
+      background: #1db954;
+      color: white;
+      font-weight: bold;
+    }
+
+    .tracks {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-top: 30px;
+    }
+
+    .track {
+      width: 200px;
+      padding: 20px;
+      background: #1e1e1e;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .track:hover {
+      transform: scale(1.05);
+      background: #2a2a2a;
+    }
+
+    .hidden {
+      display: none;
+    }
   </style>
 </head>
 <body>
-  <h1>Spotify Track Ranker</h1>
-  <input type="text" id="artist" placeholder="Artist Name" />
-  <input type="text" id="album" placeholder="Album Title" />
-  <button onclick="fetchTracks()">Submit</button>
-  <div id="track-list"></div>
-  <div id="ranking"></div>
-  <script>
-    const API_URL = 'https://<TON_BACKEND_URL>/api/spotify';
 
-    async function fetchTracks() {
-      const artist = document.getElementById('artist').value;
-      const album = document.getElementById('album').value;
-      const res = await fetch(API_URL + `?artist=${encodeURIComponent(artist)}&album=${encodeURIComponent(album)}`);
-      const data = await res.json();
-      if (data.error) return alert(data.error);
-      startRanking(data.tracks);
-    }
-    // ... reste du script identique ...
-  </script>
+<h1>🎧 Spotify Album Ranker</h1>
+
+<input id="artistInput" placeholder="Enter artist name">
+<button onclick="searchArtist()">Search</button>
+
+<p id="status"></p>
+
+<div id="albums"></div>
+
+<div id="battle" class="tracks hidden">
+  <div class="track" id="left"></div>
+  <div class="track" id="right"></div>
+</div>
+
+<div id="result"></div>
+
+<script>
+let token = "";
+let tracks = [];
+let queue = [];
+let results = [];
+
+async function getToken() {
+  const res = await fetch("https://glittery-peony-e8776c.netlify.app/.netlify/functions/getSpotifyToken");
+  const data = await res.json();
+  token = data.access_token;
+}
+
+// refresh auto
+setInterval(getToken, 1000 * 60 * 50);
+
+async function searchArtist() {
+  const name = document.getElementById("artistInput").value;
+  document.getElementById("status").innerText = "Searching...";
+
+  const res = await fetch(`https://api.spotify.com/v1/search?q=artist:${encodeURIComponent(name)}&type=artist`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  if (!res.ok) {
+    document.getElementById("status").innerText = "Error";
+    return;
+  }
+
+  const data = await res.json();
+  const artist = data.artists.items[0];
+
+  if (!artist) {
+    document.getElementById("status").innerText = "Artist not found";
+    return;
+  }
+
+  loadAlbums(artist.id);
+}
+
+async function loadAlbums(id) {
+  document.getElementById("status").innerText = "Loading albums...";
+
+  const res = await fetch(`https://api.spotify.com/v1/artists/${id}/albums`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  const data = await res.json();
+
+  const container = document.getElementById("albums");
+  container.innerHTML = "";
+
+  data.items.forEach(album => {
+    const btn = document.createElement("button");
+    btn.innerText = album.name;
+    btn.onclick = () => loadTracks(album.id);
+    container.appendChild(btn);
+  });
+}
+
+async function loadTracks(albumId) {
+  document.getElementById("status").innerText = "Loading tracks...";
+
+  const res = await fetch(`https://api.spotify.com/v1/albums/${albumId}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  const data = await res.json();
+  tracks = data.tracks.items.map(t => t.name);
+
+  queue = [...tracks];
+  results = [];
+
+  nextBattle();
+}
+
+function nextBattle() {
+  if (queue.length <= 1) {
+    results.push(...queue);
+    showResults();
+    return;
+  }
+
+  const a = queue.shift();
+  const b = queue.shift();
+
+  document.getElementById("battle").classList.remove("hidden");
+
+  const left = document.getElementById("left");
+  const right = document.getElementById("right");
+
+  left.innerText = a;
+  right.innerText = b;
+
+  left.onclick = () => choose(a, b);
+  right.onclick = () => choose(b, a);
+}
+
+function choose(winner, loser) {
+  results.push(winner);
+  queue.push(loser);
+  nextBattle();
+}
+
+function showResults() {
+  document.getElementById("battle").classList.add("hidden");
+
+  const container = document.getElementById("result");
+  container.innerHTML = "<h2>🔥 Your Ranking</h2>";
+
+  results.forEach((t, i) => {
+    const p = document.createElement("p");
+    p.innerText = `${i + 1}. ${t}`;
+    container.appendChild(p);
+  });
+
+  localStorage.setItem("ranking", JSON.stringify(results));
+}
+
+// load saved
+window.onload = async () => {
+  await getToken();
+
+  const saved = localStorage.getItem("ranking");
+  if (saved) {
+    results = JSON.parse(saved);
+    showResults();
+  }
+};
+</script>
+
 </body>
 </html>
