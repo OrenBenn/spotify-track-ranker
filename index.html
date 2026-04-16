@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Spotify Ranker</title>
+<style>
+body { background:#0f0f0f; color:white; font-family:Arial; text-align:center; }
+.card { width:200px; padding:20px; background:#1e1e1e; border-radius:15px; cursor:pointer; }
+.battle { display:flex; justify-content:center; gap:20px; margin-top:40px; }
+</style>
+</head>
+<body>
+
+<h1>🎧 Album Ranker</h1>
+<input id="artistInput" placeholder="Artist">
+<button onclick="searchArtist()">Search</button>
+
+<div id="albums"></div>
+
+<div class="battle">
+  <div class="card" id="left"></div>
+  <div class="card" id="right"></div>
+</div>
+
+<audio id="player"></audio>
+
+<script>
+const clientId = "YOUR_CLIENT_ID";
+const clientSecret = "YOUR_CLIENT_SECRET";
+
+let token = "";
+let tracks = [];
+let queue = [];
+let results = [];
+
+async function getToken() {
+  const res = await fetch("https://accounts.spotify.com/api/token", {
+    method:"POST",
+    headers:{
+      "Authorization":"Basic "+btoa(clientId+":"+clientSecret),
+      "Content-Type":"application/x-www-form-urlencoded"
+    },
+    body:"grant_type=client_credentials"
+  });
+  const data = await res.json();
+  token = data.access_token;
+}
+
+async function searchArtist(){
+  const name = document.getElementById("artistInput").value;
+  const res = await fetch(`https://api.spotify.com/v1/search?q=artist:${name}&type=artist`,{
+    headers:{Authorization:`Bearer ${token}`}
+  });
+  const data = await res.json();
+  loadAlbums(data.artists.items[0].id);
+}
+
+async function loadAlbums(id){
+  const res = await fetch(`https://api.spotify.com/v1/artists/${id}/albums`,{
+    headers:{Authorization:`Bearer ${token}`}
+  });
+  const data = await res.json();
+  const container = document.getElementById("albums");
+  container.innerHTML="";
+  data.items.forEach(a=>{
+    const btn=document.createElement("button");
+    btn.innerText=a.name;
+    btn.onclick=()=>loadTracks(a.id);
+    container.appendChild(btn);
+  });
+}
+
+async function loadTracks(id){
+  const res = await fetch(`https://api.spotify.com/v1/albums/${id}`,{
+    headers:{Authorization:`Bearer ${token}`}
+  });
+  const data = await res.json();
+  tracks = data.tracks.items;
+  queue=[...tracks];
+  results=[];
+  nextBattle();
+}
+
+function playPreview(url){
+  if(!url) return;
+  const player=document.getElementById("player");
+  player.src=url;
+  player.play();
+}
+
+function nextBattle(){
+  if(queue.length<=1){
+    results.push(...queue);
+    alert("Done!");
+    return;
+  }
+  const a=queue.shift();
+  const b=queue.shift();
+
+  const left=document.getElementById("left");
+  const right=document.getElementById("right");
+
+  left.innerHTML=a.name;
+  right.innerHTML=b.name;
+
+  playPreview(a.preview_url);
+
+  left.onclick=()=>{
+    playPreview(a.preview_url);
+    choose(a,b);
+  };
+  right.onclick=()=>{
+    playPreview(b.preview_url);
+    choose(b,a);
+  };
+}
+
+function choose(w,l){
+  results.push(w);
+  queue.push(l);
+  nextBattle();
+}
+
+getToken();
+</script>
+
+</body>
+</html>
